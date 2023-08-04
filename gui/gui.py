@@ -68,7 +68,7 @@ class TextBox:
         self.gui.box(self.window, self.x, self.y, self.w, self.h, self.color)
         for (i, l) in enumerate(self.text[self.scroll_index:self.scroll_index + self.h - 2]):
             if len(l) > self.w - 2:
-                l = l[:self.w - 5] + "..."
+                l = f"{l[:self.w - 5]}..."
             l = l.ljust(self.w - 2)
             self.window.addstr(self.y + 1 + i, self.x + 1, l, self.text_color if
                     self.selected_index != self.scroll_index + i else self.selected_color)

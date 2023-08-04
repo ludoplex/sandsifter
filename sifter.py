@@ -31,10 +31,10 @@ INJECTOR = "./injector"
 arch = ""
 
 OUTPUT = "./data/"
-LOG  = OUTPUT + "log"
-SYNC = OUTPUT + "sync"
-TICK = OUTPUT + "tick"
-LAST = OUTPUT + "last"
+LOG = f"{OUTPUT}log"
+SYNC = f"{OUTPUT}sync"
+TICK = f"{OUTPUT}tick"
+LAST = f"{OUTPUT}last"
 
 class ThreadState:
     pause = False
@@ -131,11 +131,19 @@ def disas_capstone(b):
 def disas_ndisasm(b):
     b = ''.join('\\x%02x' % ord(c) for c in b)
     if arch == "64":
-        dis, errors = subprocess.Popen("echo -ne '%s' | ndisasm -b64 - | head -2" % b,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
+        dis, errors = subprocess.Popen(
+            f"echo -ne '{b}' | ndisasm -b64 - | head -2",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+        ).communicate()
     else:
-        dis, errors = subprocess.Popen("echo -ne '%s' | ndisasm -b32 - | head -2" % b,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
+        dis, errors = subprocess.Popen(
+            f"echo -ne '{b}' | ndisasm -b32 - | head -2",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+        ).communicate()
     dis = dis.split("\n")
     extra = dis[1]
     dis = dis[0].split(None, 4)
@@ -145,11 +153,7 @@ def disas_ndisasm(b):
     address = dis[0]
     insn = dis[1]
     mnemonic = dis[2]
-    if len(dis) > 3:
-        op_str = dis[3]
-    else:
-        op_str = ""
-
+    op_str = dis[3] if len(dis) > 3 else ""
     if mnemonic == "db":
         mnemonic = "(unk)"
         insn = ""
@@ -177,10 +181,7 @@ def disas_objdump(b):
     raw = dis[:256*3].replace(" ","")
     dis = dis[256*3:].strip().split(None, 2)
     mnemonic = dis[0]
-    if len(dis) > 1:
-        op_str = dis[1]
-    else:
-        op_str = ""
+    op_str = dis[1] if len(dis) > 1 else ""
     if mnemonic == "(bad)":
         mnemonic = "(unk)"
         insn = ""
@@ -204,11 +205,14 @@ def int_to_comma(x):
     return "%d%s" % (x, result)
 
 def result_string(insn, result):
-    s = "%30s %2d %2d %2d %2d (%s)\n" % (
-            hexlify(insn), result.valid,
-            result.length, result.signum,
-            result.sicode, hexlify(cstr2py(result.raw_insn)))
-    return s
+    return "%30s %2d %2d %2d %2d (%s)\n" % (
+        hexlify(insn),
+        result.valid,
+        result.length,
+        result.signum,
+        result.sicode,
+        hexlify(cstr2py(result.raw_insn)),
+    )
 
 class Injector:
     process = None
@@ -220,7 +224,7 @@ class Injector:
 
     def start(self):
         self.command = "%s %s -%c -R %s -s %d" % \
-                (
+                    (
                     INJECTOR,
                     " ".join(self.settings.args),
                     self.settings.synth_mode,
@@ -228,12 +232,12 @@ class Injector:
                     self.settings.seed
                 )
         self.process = subprocess.Popen(
-            "exec %s" % self.command,
+            f"exec {self.command}",
             shell=True,
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
-            preexec_fn=os.setsid
-            )
+            preexec_fn=os.setsid,
+        )
         
     def stop(self):
         if self.process:
@@ -292,8 +296,6 @@ class Poll:
             bytes_polled = self.injector.process.stdout.readinto(self.T.r)
 
             if bytes_polled == sizeof(self.T.r):
-                self.T.ic = self.T.ic + 1
-
                 error = False
                 if self.T.r.valid:
                     if self.search_unk and not self.T.r.disas_known and self.T.r.signum != self.SIGILL:
@@ -301,10 +303,11 @@ class Poll:
                     if self.search_len and self.T.r.disas_known and self.T.r.disas_length != self.T.r.length:
                         error = True
                     if self.search_dis and self.T.r.disas_known \
-                        and self.T.r.disas_length != self.T.r.length and self.T.r.signum != self.SIGILL:
+                            and self.T.r.disas_length != self.T.r.length and self.T.r.signum != self.SIGILL:
                         error = True
                     if self.search_ill and self.T.r.disas_known and self.T.r.signum == self.SIGILL:
                         error = True
+                self.T.ic = self.T.ic + 1
                 if error:
                     insn = cstr2py(self.T.r.raw_insn)[:self.T.r.length]
                     r = copy.deepcopy(self.T.r)
@@ -316,10 +319,9 @@ class Poll:
                         if self.sync:
                             with open(SYNC, "a") as f:
                                 f.write(result_string(insn, self.T.r))
-            else:
-                if self.injector.process.poll() is not None:
-                    self.ts.run = False
-                    break
+            elif self.injector.process.poll() is not None:
+                self.ts.run = False
+                break
 
 class Gui:
     TIME_SLICE = .01
@@ -480,14 +482,7 @@ class Gui:
             # refresh instruction log
             synth_insn = cstr2py(self.T.r.raw_insn)
             (mnemonic, op_str, size) = self.disas(synth_insn)
-            self.T.il.append(
-                    (
-                        mnemonic,
-                        op_str,
-                        self.T.r.length,
-                        "%s" % hexlify(synth_insn)
-                    )
-                )
+            self.T.il.append((mnemonic, op_str, self.T.r.length, f"{hexlify(synth_insn)}"))
 
             # render instruction log
             try:
@@ -513,17 +508,20 @@ class Gui:
                         # bytes
                         if self.maxx > left + (mne_width + 1) + (op_width + 1) + (raw_width + 1):
                             self.stdscr.addstr(
-                                    top + 1 + line,
-                                    left + (mne_width + 1) + (op_width + 1),
-                                    "%s" % raw[0:length * 2],
-                                    self.gray(.9)
-                                    )
+                                top + 1 + line,
+                                left + (mne_width + 1) + (op_width + 1),
+                                f"{raw[:length * 2]}",
+                                self.gray(0.9),
+                            )
                             self.stdscr.addstr(
-                                    top + 1 +line,
-                                    left + (mne_width + 1) + (op_width + 1) + length * 2,
-                                    "%s" % raw[length * 2:raw_width],
-                                    self.gray(.3)
-                                    )
+                                top + 1 + line,
+                                left
+                                + (mne_width + 1)
+                                + (op_width + 1)
+                                + length * 2,
+                                f"{raw[length * 2:raw_width]}",
+                                self.gray(0.3),
+                            )
                     else:
                         # previous instructions
                         # mnemonic, operands
@@ -536,17 +534,20 @@ class Gui:
                         # bytes
                         if self.maxx > left + (mne_width + 1) + (op_width + 1) + (raw_width + 1):
                             self.stdscr.addstr(
-                                    top + 1 + line,
-                                    left + (mne_width + 1) + (op_width + 1),
-                                    "%s" % raw[0:length * 2],
-                                    self.gray(.3)
-                                    )
+                                top + 1 + line,
+                                left + (mne_width + 1) + (op_width + 1),
+                                f"{raw[:length * 2]}",
+                                self.gray(0.3),
+                            )
                             self.stdscr.addstr(
-                                    top + 1 + line,
-                                    left + (mne_width + 1) + (op_width + 1) + length * 2,
-                                    "%s" % raw[length * 2:raw_width],
-                                    self.gray(.1)
-                                    )
+                                top + 1 + line,
+                                left
+                                + (mne_width + 1)
+                                + (op_width + 1)
+                                + length * 2,
+                                f"{raw[length * 2:raw_width]}",
+                                self.gray(0.1),
+                            )
             except RuntimeError:
                 # probably the deque was modified by the poller
                 pass
@@ -571,7 +572,7 @@ class Gui:
 
             # render injection settings
             self.stdscr.addstr(top + 1, left - 8, "%d" % self.injector.settings.root, self.gray(.1))
-            self.stdscr.addstr(top + 1, left - 7, "%s" % arch, self.gray(.1))
+            self.stdscr.addstr(top + 1, left - 7, f"{arch}", self.gray(.1))
             self.stdscr.addstr(top + 1, left - 3, "%c" % self.injector.settings.synth_mode, self.gray(.5))
 
             # render injection results
@@ -583,18 +584,26 @@ class Gui:
             self.stdscr.addstr(top + top_bracket_middle + 2, left - 4, "%2x" % self.T.r.signum)
             self.stdscr.addstr(top + top_bracket_middle + 3, left - 6, "c:", self.gray(.5))
             self.stdscr.addstr(top + top_bracket_middle + 3, left - 4, "%2x" % self.T.r.sicode)
-            
+
             # render instruction count
             self.stdscr.addstr(top + top_bracket_height + 2, left, "#", self.gray(.5))
-            self.stdscr.addstr(top + top_bracket_height + 2, left + 2, 
-                    "%s" % (int_to_comma(self.T.ic)), self.gray(1))
+            self.stdscr.addstr(
+                top + top_bracket_height + 2,
+                left + 2,
+                f"{int_to_comma(self.T.ic)}",
+                self.gray(1),
+            )
             # render rate
             self.stdscr.addstr(top + top_bracket_height + 3, left, 
                     "  %d/s%s" % (rate, " " * min(rate / self.RATE_FACTOR, 100)), curses.A_REVERSE)
             # render artifact count
             self.stdscr.addstr(top + top_bracket_height + 4, left, "#", self.gray(.5))
-            self.stdscr.addstr(top + top_bracket_height + 4, left + 2, 
-                    "%s" % (int_to_comma(self.T.ac)), curses.color_pair(self.RED))
+            self.stdscr.addstr(
+                top + top_bracket_height + 4,
+                left + 2,
+                f"{int_to_comma(self.T.ac)}",
+                curses.color_pair(self.RED),
+            )
 
             # render artifact log
             if self.maxy >= top + top_bracket_height + 5 + self.T.UL + 2:
@@ -619,10 +628,18 @@ class Gui:
                         random_string = ("%02x" % random.randint(0,100)) * (raw_width-2)
                         self.stdscr.addstr(top + 1 + y, left, random_string, curses.color_pair(self.BLACK))
 
-                        self.stdscr.addstr(top + 1 + y, left + 1, 
-                                "%s" % insn_hex[0:r.length * 2], curses.color_pair(self.RED))
-                        self.stdscr.addstr(top + 1 + y, left + 1 + r.length * 2, 
-                                "%s" % insn_hex[r.length * 2:raw_width], self.gray(.25))
+                        self.stdscr.addstr(
+                            top + 1 + y,
+                            left + 1,
+                            f"{insn_hex[:r.length * 2]}",
+                            curses.color_pair(self.RED),
+                        )
+                        self.stdscr.addstr(
+                            top + 1 + y,
+                            left + 1 + r.length * 2,
+                            f"{insn_hex[r.length * 2:raw_width]}",
+                            self.gray(0.25),
+                        )
                 except RuntimeError:
                     # probably the deque was modified by the poller
                     pass
@@ -674,7 +691,7 @@ class Gui:
                 self.ticks = self.ticks + 1
                 if self.ticks & self.TICK_MASK == 0:
                     with open(TICK, 'w') as f:
-                        f.write("%s" % hexlify(synth_insn))
+                        f.write(f"{hexlify(synth_insn)}")
 
             time.sleep(self.TIME_SLICE)
 

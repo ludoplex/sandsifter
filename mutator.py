@@ -135,7 +135,7 @@ def mutate(b):
 
 def init_mutator():
     random.seed()
-    for i in range(1, SEEDS):
+    for _ in range(1, SEEDS):
         s = insn()
         s.raw = generate_seed()
         q.append(s)
@@ -186,7 +186,7 @@ while True:
     found_new = False
 
     if s.r.valid:
-        for i in range(1, MUTATIONS):
+        for _ in range(1, MUTATIONS):
             t = insn()
             t.raw = mutate(s.raw)
             process(t)

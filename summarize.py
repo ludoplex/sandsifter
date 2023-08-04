@@ -210,7 +210,7 @@ def disassemble_capstone(arch, data):
         op_str=""
         size = 0
 
-    return ("%s %s" % (mnemonic, op_str), hexlify(data[:size]))
+    return f"{mnemonic} {op_str}", hexlify(data[:size])
 
 signals = {
         1:   "sighup",
@@ -388,12 +388,9 @@ def summarize(s, f="%02x"):
 def summarize_prefixes(i):
     if 0 in i.prefixes:
         prefixes = summarize(i.prefixes - {0})
-        if prefixes:
-            prefixes = "(__," + prefixes + ")"
-        else:
-            prefixes = "(__)"
+        prefixes = f"(__,{prefixes})" if prefixes else "(__)"
     else:
-        prefixes = "(" + summarize(i.prefixes) + ")"
+        prefixes = f"({summarize(i.prefixes)})"
     return prefixes
 
 def summarize_valids(i):
@@ -562,10 +559,7 @@ if __name__ == "__main__":
 
     def get_solo_leaf(c):
         assert c.count == 1
-        if c.v:
-            return c.v[0]
-        else:
-            return get_solo_leaf(c.d[c.d.keys()[0]])
+        return c.v[0] if c.v else get_solo_leaf(c.d[c.d.keys()[0]])
 
     def build_instruction_summary(c, index=0, summary=None, lookup=None):
         if not summary:
@@ -617,7 +611,7 @@ if __name__ == "__main__":
             g = hexlify(o.base)
             if not g:
                 g = "(all)"
-            gui.window.addstr(line, infobox_x + 2, "%s" % g, gui.gray(1))
+            gui.window.addstr(line, infobox_x + 2, f"{g}", gui.gray(1))
             line = line + 1
 
             line = line + 1
@@ -631,7 +625,7 @@ if __name__ == "__main__":
 
             gui.window.addstr(line, infobox_x + 2, "example instruction from this group:", gui.gray(.5))
             line = line + 1
-            gui.window.addstr(line, infobox_x + 2, "%s" % hexlify(o.example), gui.gray(.8))
+            gui.window.addstr(line, infobox_x + 2, f"{hexlify(o.example)}", gui.gray(.8))
             line = line + 1
 
             line = line + 1
@@ -705,13 +699,7 @@ if __name__ == "__main__":
             for disassembler in sorted(disassemblers):
                 #TODO: (minor) is there a better way to do this, that doesn't
                 # involve assuming a prefix
-                if 0 in o.prefixes:
-                    # a no prefix version observed, use that
-                    dis_data = o.raw
-                else:
-                    # select a prefixed version as an exemplar instruction
-                    dis_data = chr(next(iter(o.prefixes))) + o.raw
-
+                dis_data = o.raw if 0 in o.prefixes else chr(next(iter(o.prefixes))) + o.raw
                 if disassembler == CAPSTONE:
                     (asm, raw) = disassemble_capstone(processor.architecture, dis_data)
                 else:
@@ -721,7 +709,7 @@ if __name__ == "__main__":
                 if not raw:
                     raw = "n/a"
 
-                gui.window.addstr(line, infobox_x + 2, "%s:" % disassembler, gui.gray(.5))
+                gui.window.addstr(line, infobox_x + 2, f"{disassembler}:", gui.gray(.5))
                 line = line + 1
 
                 gui.window.addstr(line, infobox_x + 4, "%-30s" % asm, gui.gray(.8))
